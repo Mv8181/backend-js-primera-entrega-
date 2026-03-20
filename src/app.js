@@ -66,3 +66,10 @@ io.on("connection", (socket) => {
     io.emit("productsUpdated", products);
   });
 });
+
+
+
+const connectDB = require("./config/db");
+
+const MONGO_URL = "mongodb+srv://vegamariano_db_user:JneU5BXY4n8FFWnA@cluster0.59chdf5.mongodb.net/ecommerce?appName=Cluster0";
+connectDB(MONGO_URL);

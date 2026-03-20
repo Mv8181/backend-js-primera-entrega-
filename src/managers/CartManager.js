@@ -3,60 +3,84 @@
 
 
 
-const fs = require("fs");
-const path = require("path");
+const CartModel = require("../models/cart.model");
 
 class CartManager {
-  constructor() {
-    this.path = path.join(__dirname, "../data/carts.json");
-  }
-
-  async _readFile() {
-    const data = await fs.promises.readFile(this.path, "utf-8");
-    return JSON.parse(data);
-  }
-
-  async _writeFile(data) {
-    await fs.promises.writeFile(this.path, JSON.stringify(data, null, 2));
-  }
-
   async createCart() {
-    const carts = await this._readFile();
-
-    const newId = carts.length === 0 ? 1 : Math.max(...carts.map(c => Number(c.id))) + 1;
-    const newCart = { id: newId, products: [] };
-
-    carts.push(newCart);
-    await this._writeFile(carts);
-
-    return newCart;
+    const cart = await CartModel.create({ products: [] });
+    return cart.toObject();
   }
 
+  // normal (sin populate)
   async getCartById(cid) {
-    const carts = await this._readFile();
-    return carts.find((c) => String(c.id) === String(cid));
+    return await CartModel.findById(cid).lean();
+  }
+
+  // con populate (lo pide la consigna)
+  async getCartPopulated(cid) {
+    return await CartModel.findById(cid).populate("products.product").lean();
   }
 
   async addProductToCart(cid, pid) {
-    const carts = await this._readFile();
-    const cartIndex = carts.findIndex((c) => String(c.id) === String(cid));
-    if (cartIndex === -1) return { error: "Not found" };
+    const cart = await CartModel.findById(cid);
+    if (!cart) return { error: "Not found" };
 
-    const cart = carts[cartIndex];
+    const idx = cart.products.findIndex((p) => String(p.product) === String(pid));
 
-    const prodIndex = cart.products.findIndex((p) => String(p.product) === String(pid));
-
-    if (prodIndex === -1) {
+    if (idx === -1) {
       cart.products.push({ product: pid, quantity: 1 });
     } else {
-      cart.products[prodIndex].quantity += 1;
+      cart.products[idx].quantity += 1;
     }
 
-    carts[cartIndex] = cart;
-    await this._writeFile(carts);
+    await cart.save();
+    return cart.toObject();
+  }
 
-    return cart;
+  // DELETE /api/carts/:cid/products/:pid
+  async deleteProductFromCart(cid, pid) {
+    const cart = await CartModel.findById(cid);
+    if (!cart) return { error: "Not found" };
+
+    cart.products = cart.products.filter((p) => String(p.product) !== String(pid));
+    await cart.save();
+    return cart.toObject();
+  }
+
+  // PUT /api/carts/:cid  (reemplaza TODOS los productos)
+  async updateCart(cid, productsArray) {
+    const updated = await CartModel.findByIdAndUpdate(
+      cid,
+      { products: productsArray },
+      { new: true }
+    ).lean();
+
+    if (!updated) return { error: "Not found" };
+    return updated;
+  }
+
+  // PUT /api/carts/:cid/products/:pid  (solo quantity)
+  async updateProductQuantity(cid, pid, quantity) {
+    const cart = await CartModel.findById(cid);
+    if (!cart) return { error: "Not found" };
+
+    const idx = cart.products.findIndex((p) => String(p.product) === String(pid));
+    if (idx === -1) return { error: "Not found" };
+
+    cart.products[idx].quantity = Number(quantity);
+    await cart.save();
+    return cart.toObject();
+  }
+
+  // DELETE /api/carts/:cid  (vaciar carrito)
+  async clearCart(cid) {
+    const cart = await CartModel.findById(cid);
+    if (!cart) return { error: "Not found" };
+
+    cart.products = [];
+    await cart.save();
+    return cart.toObject();
   }
 }
 
-module.exports = CartManager;
+module.exports =  CartManager;

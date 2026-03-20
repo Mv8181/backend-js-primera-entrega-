@@ -2,73 +2,66 @@
 
 
 
-const fs = require("fs");
-const path = require("path");
+const ProductModel = require("../models/product.model");
 
 class ProductManager {
-  constructor() {
-    this.path = path.join(__dirname, "../data/products.json");
-  }
+  async getProductsPaginated({ limit = 10, page = 1, sort, query }) {
+    const filter = {};
 
-  async _readFile() {
-    const data = await fs.promises.readFile(this.path, "utf-8");
-    return JSON.parse(data);
-  }
+    // query: category o disponibilidad (status)
+    // - si query es "true/false" => status
+    // - si no => category
+    if (query !== undefined) {
+      if (query === "true" || query === "false") {
+        filter.status = query === "true";
+      } else {
+        filter.category = query;
+      }
+    }
 
-  async _writeFile(data) {
-    await fs.promises.writeFile(this.path, JSON.stringify(data, null, 2));
+    const options = {
+      limit: Number(limit) || 10,
+      page: Number(page) || 1,
+      lean: true
+    };
+
+    // sort asc/desc por precio
+    if (sort === "asc") options.sort = { price: 1 };
+    if (sort === "desc") options.sort = { price: -1 };
+
+    return await ProductModel.paginate(filter, options);
   }
 
   async getProducts() {
-    return await this._readFile();
+    return await ProductModel.find().lean();
   }
 
   async getProductById(pid) {
-    const products = await this._readFile();
-    return products.find((p) => String(p.id) === String(pid));
+    return await ProductModel.findById(pid).lean();
   }
 
   async addProduct(product) {
-    const products = await this._readFile();
-
-    const required = ["title", "description", "code", "price", "status", "stock", "category", "thumbnails"];
-    const missing = required.some((f) => product[f] === undefined);
-    if (missing) return { error: "Campos incompletos" };
-
-    const codeExists = products.some((p) => p.code === product.code);
-    if (codeExists) return { error: "El code ya existe" };
-
-    const newId =
-      products.length === 0 ? 1 : Math.max(...products.map((p) => Number(p.id))) + 1;
-
-    const newProduct = { id: newId, ...product };
-    products.push(newProduct);
-
-    await this._writeFile(products);
-    return newProduct;
+    try {
+      const created = await ProductModel.create(product);
+      return created.toObject();
+    } catch (err) {
+      return { error: err.message };
+    }
   }
 
   async updateProduct(pid, updates) {
-    const products = await this._readFile();
-    const index = products.findIndex((p) => String(p.id) === String(pid));
-    if (index === -1) return { error: "Not found" };
-
-    const { id, ...rest } = updates;
-    products[index] = { ...products[index], ...rest };
-
-    await this._writeFile(products);
-    return products[index];
+    const { id, _id, ...rest } = updates; // no permitir ids
+    const updated = await ProductModel.findByIdAndUpdate(pid, rest, { new: true }).lean();
+    if (!updated) return { error: "Not found" };
+    return updated;
   }
 
   async deleteProduct(pid) {
-    const products = await this._readFile();
-    const index = products.findIndex((p) => String(p.id) === String(pid));
-    if (index === -1) return { error: "Not found" };
-
-    const deleted = products.splice(index, 1)[0];
-    await this._writeFile(products);
+    const deleted = await ProductModel.findByIdAndDelete(pid).lean();
+    if (!deleted) return { error: "Not found" };
     return deleted;
   }
 }
 
 module.exports = ProductManager;
+

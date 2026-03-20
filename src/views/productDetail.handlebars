@@ -1,0 +1,42 @@
+
+
+
+<h1>Detalle del producto</h1>
+
+<p><strong>Título:</strong> {{product.title}}</p>
+<p><strong>Descripción:</strong> {{product.description}}</p>
+<p><strong>Precio:</strong> ${{product.price}}</p>
+<p><strong>Categoría:</strong> {{product.category}}</p>
+<p><strong>Stock:</strong> {{product.stock}}</p>
+
+<hr />
+
+<h2>Agregar al carrito</h2>
+
+<form id="addToCartForm">
+  <input name="cid" placeholder="Cart ID (Mongo _id)" required />
+  <button type="submit">Agregar al carrito</button>
+</form>
+
+<p id="resultMsg"></p>
+
+<script>
+  const form = document.getElementById("addToCartForm");
+  const msg = document.getElementById("resultMsg");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const cid = form.cid.value;
+
+    const res = await fetch(`/api/carts/${cid}/product/{{product._id}}`, {
+      method: "POST"
+    });
+
+    if (res.ok) {
+      msg.textContent = "Producto agregado ✅";
+    } else {
+      const data = await res.json().catch(() => ({}));
+      msg.textContent = "Error: " + (data.error || "No se pudo agregar");
+    }
+  });
+</script>
